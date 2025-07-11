@@ -34,6 +34,9 @@ func (s *Server) Run() {
 }
 
 func (s *Server) webSocketHandlerV1(ctx *fasthttp.RequestCtx) {
+	log.WithFields(log.Fields{
+		"addr": ctx.RemoteAddr(),
+	}).Info("Соединение")
 	if err := s.upgrader.Upgrade(ctx, func(conn *websocket.Conn) {
 		conn.SetPingHandler(pingHandler)
 		conn.SetPongHandler(pongHandler)
@@ -94,9 +97,6 @@ func keepAlive(conn *websocket.Conn) chan bool {
 		for {
 			select {
 			case <-quitChan:
-				log.WithFields(log.Fields{
-					"addr": conn.RemoteAddr(),
-				}).Info("Завершение")
 				return
 			case <-time.After(10 * time.Second):
 				conn.WriteControl(websocket.PingMessage, []byte{}, time.Now().Add(time.Second*10))
