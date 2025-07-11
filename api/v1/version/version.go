@@ -16,6 +16,10 @@ type Params struct {
 	Integers []int `json:"integers,omitempty"`
 }
 
+func (v *Version) Register(methods jsonrpc2.Methods) {
+	methods["version"] = v.Handler
+}
+
 func (v *Version) Handler(data json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
 	if _, err := v.params(data); err == nil {
 		v.Version = Number
