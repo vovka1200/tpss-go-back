@@ -23,7 +23,7 @@ func (s *Server) Run() {
 	s.API.V1.Register()
 	log.Info("API v1 инициализирован")
 	s.upgrader = &websocket.FastHTTPUpgrader{
-		CheckOrigin: s.checkOrigin,
+		CheckOrigin: checkOrigin,
 	}
 	r := router.New()
 	r.GET("/api/v1", s.webSocketHandlerV1)
@@ -106,6 +106,6 @@ func keepAlive(conn *websocket.Conn) chan bool {
 	return quitChan
 }
 
-func (s *Server) checkOrigin(ctx *fasthttp.RequestCtx) bool {
+func checkOrigin(ctx *fasthttp.RequestCtx) bool {
 	return true
 }
