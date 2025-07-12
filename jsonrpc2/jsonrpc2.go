@@ -9,6 +9,7 @@ const MethodNotFound int = -32601
 const InvalidParams int = -32602
 const ParseError int = -32700
 const InternalError int = -32603
+const Unauthorized int = 401
 
 type Request struct {
 	JSONRPC string          `json:"jsonrpc"`
@@ -33,7 +34,7 @@ type Error struct {
 type Handler func(json.RawMessage) (json.RawMessage, *Error)
 type Methods map[string]Handler
 
-func UnmarshalParams(data []byte, v any) *Error {
+func UnmarshalParams[T any](data []byte, v *T) *Error {
 	if data == nil {
 		return nil
 	}
@@ -56,5 +57,21 @@ func Marshal(v any) (json.RawMessage, *Error) {
 			Code:    InternalError,
 			Message: err.Error(),
 		}
+	}
+}
+
+func NewResponse() Response {
+	return Response{
+		JSONRPC: "2.0",
+	}
+}
+
+func NewError(code int, message string) Response {
+	return Response{
+		JSONRPC: "2.0",
+		Error: &Error{
+			Code:    code,
+			Message: message,
+		},
 	}
 }
