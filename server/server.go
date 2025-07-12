@@ -1,11 +1,13 @@
 package server
 
 import (
+	"encoding/json"
 	"github.com/fasthttp/router"
 	"github.com/fasthttp/websocket"
 	log "github.com/sirupsen/logrus"
 	"github.com/valyala/fasthttp"
 	v1 "github.com/vovka1200/tpss-go-back/api/v1"
+	"github.com/vovka1200/tpss-go-back/jsonrpc2"
 	"strings"
 	"time"
 )
@@ -38,20 +40,34 @@ func (s *Server) webSocketHandlerV1(ctx *fasthttp.RequestCtx) {
 		"addr": ctx.RemoteAddr(),
 	}).Info("Соединение")
 	if err := s.upgrader.Upgrade(ctx, func(conn *websocket.Conn) {
-		conn.SetPingHandler(pingHandler)
-		conn.SetPongHandler(pongHandler)
 		conn.SetCloseHandler(closeHandler)
-		quitKeepAlive := keepAlive(conn)
+		keepAliveQuitChan := sendingKeepAlive(conn)
+		sendUnAuthorizedChan := sendingUnAuthorized(conn)
+		authorized := false
 		for {
 			if msgType, msg, err := conn.ReadMessage(); err == nil {
 				if msgType == websocket.TextMessage {
-					if buffer := s.API.V1.Handler(conn, msg); buffer != nil {
+					response := s.API.V1.Handler(conn, authorized, msg)
+					if response.Error == nil && !authorized {
+						authorized = true
+						sendUnAuthorizedChan <- true
+						log.WithFields(log.Fields{
+							"addr": conn.RemoteAddr(),
+						}).Info("Соединение авторизовано")
+					}
+					if buffer, err := json.Marshal(response); err == nil {
 						if err := conn.WriteMessage(websocket.TextMessage, buffer); err != nil {
 							log.WithFields(log.Fields{
 								"addr": conn.RemoteAddr(),
 							}).Error(err)
 						}
+					} else {
+						log.WithFields(log.Fields{
+							"addr": conn.RemoteAddr(),
+						}).Error(err)
 					}
+				} else if msgType == websocket.PingMessage {
+					conn.WriteControl(websocket.PongMessage, []byte{}, time.Now().Add(3*time.Second))
 				} else {
 					log.WithFields(log.Fields{
 						"type": msgType,
@@ -68,21 +84,16 @@ func (s *Server) webSocketHandlerV1(ctx *fasthttp.RequestCtx) {
 				break
 			}
 		}
-		quitKeepAlive <- true
+		keepAliveQuitChan <- true
+		close(keepAliveQuitChan)
+		if !authorized {
+			sendUnAuthorizedChan <- true
+		}
+		close(sendUnAuthorizedChan)
 		conn.Close()
 	}); err != nil {
 		log.Error(err)
 	}
-}
-
-func pingHandler(s string) error {
-	log.Debug(s)
-	return nil
-}
-
-func pongHandler(s string) error {
-	log.Debug(s)
-	return nil
 }
 
 func closeHandler(code int, text string) error {
@@ -90,16 +101,15 @@ func closeHandler(code int, text string) error {
 	return nil
 }
 
-func keepAlive(conn *websocket.Conn) chan bool {
+func sendingKeepAlive(conn *websocket.Conn) chan bool {
 	quitChan := make(chan bool)
 	go func() {
-		defer close(quitChan)
 		for {
 			select {
 			case <-quitChan:
 				return
 			case <-time.After(10 * time.Second):
-				conn.WriteControl(websocket.PingMessage, []byte{}, time.Now().Add(time.Second*10))
+				conn.WriteControl(websocket.PingMessage, []byte{}, time.Now().Add(3*time.Second))
 			}
 		}
 	}()
@@ -108,4 +118,26 @@ func keepAlive(conn *websocket.Conn) chan bool {
 
 func checkOrigin(ctx *fasthttp.RequestCtx) bool {
 	return true
+}
+
+func sendingUnAuthorized(conn *websocket.Conn) chan bool {
+	quitChan := make(chan bool)
+	buffer, _ := jsonrpc2.Marshal(
+		jsonrpc2.NewError(401, "UnAuthorized"),
+	)
+	go func() {
+		for {
+			select {
+			case <-quitChan:
+				return
+			case <-time.After(3 * time.Second):
+				if err := conn.WriteMessage(websocket.TextMessage, buffer); err != nil {
+					log.WithFields(log.Fields{
+						"addr": conn.RemoteAddr(),
+					}).Error(err)
+				}
+			}
+		}
+	}()
+	return quitChan
 }

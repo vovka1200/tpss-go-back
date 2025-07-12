@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"github.com/fasthttp/websocket"
 	log "github.com/sirupsen/logrus"
+	"github.com/vovka1200/tpss-go-back/api/v1/access"
 	"github.com/vovka1200/tpss-go-back/api/v1/version"
 	"github.com/vovka1200/tpss-go-back/jsonrpc2"
 )
@@ -14,10 +15,11 @@ type APIHandler interface {
 
 type API struct {
 	methods jsonrpc2.Methods
-	Version version.Version `api:"version"`
+	Version version.Version
+	Access  access.Access
 }
 
-func (api *API) Handler(conn *websocket.Conn, msg []byte) []byte {
+func (api *API) Handler(conn *websocket.Conn, authorized bool, msg []byte) jsonrpc2.Response {
 
 	var req jsonrpc2.Request
 	result := jsonrpc2.Response{
@@ -32,8 +34,24 @@ func (api *API) Handler(conn *websocket.Conn, msg []byte) []byte {
 		}).Debug("Запрос")
 		result.ID = req.ID
 
-		if method, ok := api.methods[req.Method]; ok {
-			result.Result, result.Error = method(req.Params)
+		if authorized {
+			if method, ok := api.methods[req.Method]; ok {
+				result.Result, result.Error = method(req.Params)
+			} else {
+				result.Error = &jsonrpc2.Error{
+					Code:    jsonrpc2.MethodNotFound,
+					Message: "Method not found",
+				}
+			}
+		} else {
+			if req.Method == "login" {
+				result.Result, result.Error = api.methods[req.Method](req.Params)
+			} else {
+				result.Error = &jsonrpc2.Error{
+					Code:    401,
+					Message: "Unauthorized",
+				}
+			}
 		}
 
 	} else {
@@ -45,16 +63,11 @@ func (api *API) Handler(conn *websocket.Conn, msg []byte) []byte {
 		}
 	}
 
-	if buffer, err := json.Marshal(result); err == nil {
-		return buffer
-	} else {
-		log.Error(err)
-		return nil
-	}
-
+	return result
 }
 
 func (api *API) Register() {
 	api.methods = make(jsonrpc2.Methods)
 	api.Version.Register(api.methods)
+	api.Access.Register(api.methods)
 }
