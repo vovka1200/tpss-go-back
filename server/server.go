@@ -67,7 +67,9 @@ func (s *Server) webSocketHandlerV1(ctx *fasthttp.RequestCtx) {
 						}).Error(err)
 					}
 				} else if msgType == websocket.PingMessage {
-					conn.WriteControl(websocket.PongMessage, []byte{}, time.Now().Add(3*time.Second))
+					if err := conn.WriteControl(websocket.PongMessage, []byte{}, time.Now().Add(3*time.Second)); err != nil {
+						log.Error(err)
+					}
 				} else {
 					log.WithFields(log.Fields{
 						"type": msgType,
@@ -90,7 +92,7 @@ func (s *Server) webSocketHandlerV1(ctx *fasthttp.RequestCtx) {
 			sendUnAuthorizedChan <- true
 		}
 		close(sendUnAuthorizedChan)
-		conn.Close()
+		_ = conn.Close()
 	}); err != nil {
 		log.Error(err)
 	}
@@ -109,7 +111,9 @@ func sendingKeepAlive(conn *websocket.Conn) chan bool {
 			case <-quitChan:
 				return
 			case <-time.After(10 * time.Second):
-				conn.WriteControl(websocket.PingMessage, []byte{}, time.Now().Add(3*time.Second))
+				if err := conn.WriteControl(websocket.PingMessage, []byte{}, time.Now().Add(3*time.Second)); err != nil {
+					log.Error(err)
+				}
 			}
 		}
 	}()
