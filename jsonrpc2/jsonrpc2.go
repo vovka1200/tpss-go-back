@@ -3,6 +3,7 @@ package jsonrpc2
 import (
 	"encoding/json"
 	log "github.com/sirupsen/logrus"
+	"github.com/vovka1200/pgme"
 )
 
 const MethodNotFound int = -32601
@@ -31,7 +32,7 @@ type Error struct {
 	Data    json.RawMessage `json:"data,omitempty"`
 }
 
-type Handler func(json.RawMessage) (any, *Error)
+type Handler func(*pgme.Database, json.RawMessage) (any, *Error)
 type Methods map[string]Handler
 
 func UnmarshalParams[T any](data []byte, v *T) *Error {

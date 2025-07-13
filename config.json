@@ -1,6 +1,13 @@
 {
   "loglevel": "debug",
   "server": {
-    "listen": "0.0.0.0:8080"
+    "listen": "0.0.0.0:8080",
+    "database": {
+      "host": "172.18.0.1",
+      "port": 5432,
+      "name": "tpss",
+      "username": "tpss",
+      "password": "123"
+    }
   }
 }

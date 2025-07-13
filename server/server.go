@@ -6,6 +6,7 @@ import (
 	"github.com/fasthttp/websocket"
 	log "github.com/sirupsen/logrus"
 	"github.com/valyala/fasthttp"
+	"github.com/vovka1200/pgme"
 	v1 "github.com/vovka1200/tpss-go-back/api/v1"
 	"github.com/vovka1200/tpss-go-back/jsonrpc2"
 	"strings"
@@ -18,10 +19,15 @@ type Server struct {
 	API      struct {
 		V1 v1.API `json:"v1"`
 	} `json:"API"`
+	Database pgme.Database `json:"database"`
 }
 
 func (s *Server) Run() {
 	log.Info("Запуск сервера")
+	if err := s.Database.InitPool(); err != nil {
+		log.Fatal(err)
+	}
+	log.Info("База данных подключена")
 	s.API.V1.Register()
 	log.Info("API v1 инициализирован")
 	s.upgrader = &websocket.FastHTTPUpgrader{
@@ -47,7 +53,7 @@ func (s *Server) webSocketHandlerV1(ctx *fasthttp.RequestCtx) {
 		for {
 			if msgType, msg, err := conn.ReadMessage(); err == nil {
 				if msgType == websocket.TextMessage {
-					response := s.API.V1.Handler(conn, authorized, msg)
+					response := s.API.V1.Handler(conn, &s.Database, authorized, msg)
 					if response.Error == nil && !authorized {
 						authorized = true
 						sendUnAuthorizedChan <- true

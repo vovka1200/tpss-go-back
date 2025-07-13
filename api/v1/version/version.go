@@ -2,6 +2,7 @@ package version
 
 import (
 	"encoding/json"
+	"github.com/vovka1200/pgme"
 	"github.com/vovka1200/tpss-go-back/jsonrpc2"
 )
 
@@ -22,7 +23,7 @@ func (v *Version) Register(methods jsonrpc2.Methods) {
 	methods["version"] = v.Handler
 }
 
-func (v *Version) Handler(data json.RawMessage) (any, *jsonrpc2.Error) {
+func (v *Version) Handler(db *pgme.Database, data json.RawMessage) (any, *jsonrpc2.Error) {
 	return Answer{
 		Version: Number,
 	}, nil

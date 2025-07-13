@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"github.com/fasthttp/websocket"
 	log "github.com/sirupsen/logrus"
+	"github.com/vovka1200/pgme"
 	"github.com/vovka1200/tpss-go-back/api/v1/access"
 	"github.com/vovka1200/tpss-go-back/api/v1/version"
 	"github.com/vovka1200/tpss-go-back/jsonrpc2"
@@ -15,7 +16,7 @@ type API struct {
 	Access  access.Access
 }
 
-func (api *API) Handler(conn *websocket.Conn, authorized bool, msg []byte) jsonrpc2.Response {
+func (api *API) Handler(conn *websocket.Conn, db *pgme.Database, authorized bool, msg []byte) jsonrpc2.Response {
 
 	var req jsonrpc2.Request
 	response := jsonrpc2.Response{
@@ -33,7 +34,7 @@ func (api *API) Handler(conn *websocket.Conn, authorized bool, msg []byte) jsonr
 
 		if authorized {
 			if method, ok := api.methods[req.Method]; ok {
-				result, response.Error = method(req.Params)
+				result, response.Error = method(db, req.Params)
 			} else {
 				response.Error = &jsonrpc2.Error{
 					Code:    jsonrpc2.MethodNotFound,
@@ -42,7 +43,7 @@ func (api *API) Handler(conn *websocket.Conn, authorized bool, msg []byte) jsonr
 			}
 		} else {
 			if req.Method == "login" {
-				result, response.Error = api.methods["login"](req.Params)
+				result, response.Error = api.methods["login"](db, req.Params)
 			} else {
 				response.Error = &jsonrpc2.Error{
 					Code:    401,
