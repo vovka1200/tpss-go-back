@@ -1,4 +1,4 @@
-package access
+package login
 
 import (
 	"encoding/json"
@@ -18,16 +18,16 @@ type Answer struct {
 	Authorized bool `json:"authorized"`
 }
 
-func (l *Login) Handler(data json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+func (l *Login) Handler(data json.RawMessage) (any, *jsonrpc2.Error) {
 	params := Params{}
 	if err := jsonrpc2.UnmarshalParams[Params](data, &params); err == nil {
 		log.WithFields(log.Fields{
 			"username": params.Username,
 		}).Info("Login")
 		if params.Username == "test" {
-			return jsonrpc2.Marshal(Answer{
+			return Answer{
 				Authorized: true,
-			})
+			}, nil
 		} else {
 			return nil, &jsonrpc2.Error{
 				Code:    jsonrpc2.Unauthorized,
