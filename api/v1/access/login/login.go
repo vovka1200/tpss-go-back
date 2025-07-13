@@ -6,6 +6,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	log "github.com/sirupsen/logrus"
 	"github.com/vovka1200/pgme"
+	"github.com/vovka1200/tpss-go-back/api/v1/access/account"
 	"github.com/vovka1200/tpss-go-back/jsonrpc2"
 )
 
@@ -18,7 +19,8 @@ type Params struct {
 }
 
 type Answer struct {
-	Authorized bool `json:"authorized",query:"authorized"`
+	Account    account.Account `json:"account"`
+	Authorized bool            `json:"authorized"`
 }
 
 func (l *Login) Handler(db *pgme.Database, data json.RawMessage) (any, *jsonrpc2.Error) {
@@ -31,7 +33,7 @@ func (l *Login) Handler(db *pgme.Database, data json.RawMessage) (any, *jsonrpc2
 		if conn, err := db.NewConnection(ctx); err == nil {
 			defer db.Disconnect(conn)
 			rows, _ := conn.Query(ctx, `
-				SELECT true AS authorized
+				SELECT name, username
 				FROM access.users
 				WHERE username=$1
 				  AND password=crypt($2,password)
@@ -39,7 +41,9 @@ func (l *Login) Handler(db *pgme.Database, data json.RawMessage) (any, *jsonrpc2
 				params.Username,
 				params.Password,
 			)
-			if answer, err := pgx.CollectOneRow[Answer](rows, pgx.RowToStructByNameLax[Answer]); err == nil {
+			answer := Answer{}
+			if answer.Account, err = pgx.CollectOneRow[account.Account](rows, pgx.RowToStructByNameLax[account.Account]); err == nil {
+				answer.Authorized = true
 				log.WithFields(log.Fields{
 					"username": params.Username,
 				}).Info("Авторизован")
