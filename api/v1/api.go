@@ -9,10 +9,6 @@ import (
 	"github.com/vovka1200/tpss-go-back/jsonrpc2"
 )
 
-type APIHandler interface {
-	Handler(data json.RawMessage) (json.RawMessage, *jsonrpc2.Error)
-}
-
 type API struct {
 	methods jsonrpc2.Methods
 	Version version.Version
@@ -22,7 +18,7 @@ type API struct {
 func (api *API) Handler(conn *websocket.Conn, authorized bool, msg []byte) jsonrpc2.Response {
 
 	var req jsonrpc2.Request
-	result := jsonrpc2.Response{
+	response := jsonrpc2.Response{
 		JSONRPC: "2.0",
 	}
 
@@ -32,38 +28,45 @@ func (api *API) Handler(conn *websocket.Conn, authorized bool, msg []byte) jsonr
 			"method": req.Method,
 			"addr":   conn.RemoteAddr(),
 		}).Debug("Запрос")
-		result.ID = req.ID
+		response.ID = req.ID
+		var result any
 
 		if authorized {
 			if method, ok := api.methods[req.Method]; ok {
-				result.Result, result.Error = method(req.Params)
+				result, response.Error = method(req.Params)
 			} else {
-				result.Error = &jsonrpc2.Error{
+				response.Error = &jsonrpc2.Error{
 					Code:    jsonrpc2.MethodNotFound,
 					Message: "Method not found",
 				}
 			}
 		} else {
 			if req.Method == "login" {
-				result.Result, result.Error = api.methods[req.Method](req.Params)
+				result, response.Error = api.methods["login"](req.Params)
 			} else {
-				result.Error = &jsonrpc2.Error{
+				response.Error = &jsonrpc2.Error{
 					Code:    401,
 					Message: "Unauthorized",
 				}
 			}
 		}
-
+		if response.Result, err = json.Marshal(result); err != nil {
+			log.Error(err)
+			response.Error = &jsonrpc2.Error{
+				Code:    500,
+				Message: "Internal error",
+			}
+		}
 	} else {
 		log.Error(err)
-		result.ID = nil
-		result.Error = &jsonrpc2.Error{
+		response.ID = nil
+		response.Error = &jsonrpc2.Error{
 			Code:    jsonrpc2.ParseError,
 			Message: err.Error(),
 		}
 	}
 
-	return result
+	return response
 }
 
 func (api *API) Register() {

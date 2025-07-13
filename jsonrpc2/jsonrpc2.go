@@ -31,7 +31,7 @@ type Error struct {
 	Data    json.RawMessage `json:"data,omitempty"`
 }
 
-type Handler func(json.RawMessage) (json.RawMessage, *Error)
+type Handler func(json.RawMessage) (any, *Error)
 type Methods map[string]Handler
 
 func UnmarshalParams[T any](data []byte, v *T) *Error {

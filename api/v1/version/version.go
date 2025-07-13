@@ -22,8 +22,8 @@ func (v *Version) Register(methods jsonrpc2.Methods) {
 	methods["version"] = v.Handler
 }
 
-func (v *Version) Handler(data json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
-	return jsonrpc2.Marshal(Answer{
+func (v *Version) Handler(data json.RawMessage) (any, *jsonrpc2.Error) {
+	return Answer{
 		Version: Number,
-	})
+	}, nil
 }
