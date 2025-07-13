@@ -6,7 +6,7 @@ import (
 	"github.com/vovka1200/tpss-go-back/jsonrpc2"
 )
 
-const Number string = "1.0"
+const Number string = "1.0.0"
 
 type Version struct {
 }
