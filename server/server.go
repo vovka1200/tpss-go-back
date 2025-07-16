@@ -9,7 +9,6 @@ import (
 	"github.com/vovka1200/pgme"
 	v1 "github.com/vovka1200/tpss-go-back/api/v1"
 	"github.com/vovka1200/tpss-go-back/jsonrpc2"
-	"strings"
 	"time"
 )
 
@@ -47,34 +46,43 @@ func (s *Server) webSocketHandlerV1(ctx *fasthttp.RequestCtx) {
 	}).Info("Соединение")
 	if err := s.upgrader.Upgrade(ctx, func(conn *websocket.Conn) {
 		conn.SetCloseHandler(closeHandler)
-		keepAliveQuitChan := sendingKeepAlive(conn)
-		sendUnAuthorizedChan := sendingUnAuthorized(conn)
-		authorized := false
+		userId := ""
+		unAuthorized := true
+		responseQuitChan, responseChan := responseLoop(conn)
+		defer close(responseQuitChan)
+		keepAliveChan := keepAliveLoop(conn)
+		defer close(keepAliveChan)
+		unAuthorizedChan := unAuthorizedLoop(responseChan)
+		defer close(unAuthorizedChan)
 		for {
 			if msgType, msg, err := conn.ReadMessage(); err == nil {
 				if msgType == websocket.TextMessage {
-					response := s.API.V1.Handler(conn, &s.Database, authorized, msg)
-					if response.Error == nil && !authorized {
-						authorized = true
-						sendUnAuthorizedChan <- true
+					response := jsonrpc2.Response{}
+					userId, response = s.API.V1.Handler(conn, &s.Database, userId, msg)
+					if response.Error == nil && userId != "" && unAuthorized {
+						unAuthorized = false
+						unAuthorizedChan <- true
 						log.WithFields(log.Fields{
+							"user": userId,
 							"addr": conn.RemoteAddr(),
 						}).Info("Соединение авторизовано")
 					}
 					if buffer, err := json.Marshal(response); err == nil {
-						if err := conn.WriteMessage(websocket.TextMessage, buffer); err != nil {
-							log.WithFields(log.Fields{
-								"addr": conn.RemoteAddr(),
-							}).Error(err)
-						}
+						time.Sleep(1 * time.Second)
+						responseChan <- buffer
 					} else {
 						log.WithFields(log.Fields{
+							"user": userId,
 							"addr": conn.RemoteAddr(),
 						}).Error(err)
 					}
 				} else if msgType == websocket.PingMessage {
 					if err := conn.WriteControl(websocket.PongMessage, []byte{}, time.Now().Add(3*time.Second)); err != nil {
-						log.Error(err)
+						log.WithFields(log.Fields{
+							"type": msgType,
+							"addr": conn.RemoteAddr(),
+						}).Error(err)
+						break
 					}
 				} else {
 					log.WithFields(log.Fields{
@@ -84,20 +92,22 @@ func (s *Server) webSocketHandlerV1(ctx *fasthttp.RequestCtx) {
 					break
 				}
 			} else {
-				if !strings.Contains(err.Error(), "1005") {
-					log.WithFields(log.Fields{
-						"addr": conn.RemoteAddr(),
-					}).Error(err)
-				}
+				log.WithFields(log.Fields{
+					"type": msgType,
+					"addr": conn.RemoteAddr(),
+				}).Error(err)
 				break
 			}
 		}
-		keepAliveQuitChan <- true
-		close(keepAliveQuitChan)
-		if !authorized {
-			sendUnAuthorizedChan <- true
+		keepAliveChan <- true
+		if userId != "" {
+			unAuthorizedChan <- true
 		}
-		close(sendUnAuthorizedChan)
+		responseQuitChan <- true
+		log.WithFields(log.Fields{
+			"user": userId,
+			"addr": conn.RemoteAddr(),
+		}).Debug("Соединение завершено")
 		_ = conn.Close()
 	}); err != nil {
 		log.Error(err)
@@ -109,7 +119,7 @@ func closeHandler(code int, text string) error {
 	return nil
 }
 
-func sendingKeepAlive(conn *websocket.Conn) chan bool {
+func keepAliveLoop(conn *websocket.Conn) chan bool {
 	quitChan := make(chan bool)
 	go func() {
 		for {
@@ -119,6 +129,7 @@ func sendingKeepAlive(conn *websocket.Conn) chan bool {
 			case <-time.After(10 * time.Second):
 				if err := conn.WriteControl(websocket.PingMessage, []byte{}, time.Now().Add(3*time.Second)); err != nil {
 					log.Error(err)
+					return
 				}
 			}
 		}
@@ -130,7 +141,7 @@ func checkOrigin(ctx *fasthttp.RequestCtx) bool {
 	return true
 }
 
-func sendingUnAuthorized(conn *websocket.Conn) chan bool {
+func unAuthorizedLoop(responseLoop chan []byte) chan bool {
 	quitChan := make(chan bool)
 	buffer, _ := jsonrpc2.Marshal(
 		jsonrpc2.NewError(401, "UnAuthorized"),
@@ -141,6 +152,22 @@ func sendingUnAuthorized(conn *websocket.Conn) chan bool {
 			case <-quitChan:
 				return
 			case <-time.After(3 * time.Second):
+				responseLoop <- buffer
+			}
+		}
+	}()
+	return quitChan
+}
+
+func responseLoop(conn *websocket.Conn) (chan bool, chan []byte) {
+	bufferChan := make(chan []byte)
+	quitChan := make(chan bool)
+	go func() {
+		for {
+			select {
+			case <-quitChan:
+				return
+			case buffer := <-bufferChan:
 				if err := conn.WriteMessage(websocket.TextMessage, buffer); err != nil {
 					log.WithFields(log.Fields{
 						"addr": conn.RemoteAddr(),
@@ -149,5 +176,5 @@ func sendingUnAuthorized(conn *websocket.Conn) chan bool {
 			}
 		}
 	}()
-	return quitChan
+	return quitChan, bufferChan
 }
