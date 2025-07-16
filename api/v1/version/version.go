@@ -23,7 +23,7 @@ func (v *Version) Register(methods jsonrpc2.Methods) {
 	methods["version"] = v.Handler
 }
 
-func (v *Version) Handler(db *pgme.Database, data json.RawMessage) (any, *jsonrpc2.Error) {
+func (v *Version) Handler(db *pgme.Database, userId string, data json.RawMessage) (any, *jsonrpc2.Error) {
 	return Answer{
 		Version: Number,
 	}, nil
