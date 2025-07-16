@@ -48,7 +48,7 @@ func (u *Users) Handler(db *pgme.Database, state *websocket.State, data json.Raw
 				FROM access.users u
 				JOIN access.members m ON m.user_id=u.id
 				JOIN access.groups g ON g.id=m.group_id
-				WHERE u.name ~* $1::text
+				WHERE (u.name ~* $1::text OR g.name ~* $1::text)
 				GROUP BY 1,2,3,4`,
 				params.Filter,
 			)

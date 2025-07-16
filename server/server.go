@@ -38,14 +38,19 @@ func (s *Server) webSocketHandlerV1(ctx *fasthttp.RequestCtx) {
 	log.WithFields(log.Fields{
 		"addr": ctx.RemoteAddr(),
 	}).Info("Соединение")
-	websocket.Handler(ctx, func(state *websocket.State, msg []byte) ([]byte, error) {
+	// websockets layer
+	if err := websocket.Handler(ctx, func(state *websocket.State, msg []byte) ([]byte, error) {
+		// jsonrpc layer
 		return jsonrpc2.Handler(msg, func(request jsonrpc2.Request) (any, jsonrpc2.Error) {
 			log.WithFields(log.Fields{
 				"id":     request.ID,
 				"method": request.Method,
 				"ip":     ctx.Conn().RemoteAddr(),
 			}).Debug("Запрос")
+			// API layer
 			return s.API.V1.Handler(state, &s.Database, request.Method, request.Params)
 		})
-	})
+	}); err != nil {
+		log.Error(err)
+	}
 }
