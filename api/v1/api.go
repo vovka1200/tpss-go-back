@@ -6,6 +6,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/vovka1200/pgme"
 	"github.com/vovka1200/tpss-go-back/api/v1/access"
+	"github.com/vovka1200/tpss-go-back/api/v1/access/login"
 	"github.com/vovka1200/tpss-go-back/api/v1/version"
 	"github.com/vovka1200/tpss-go-back/jsonrpc2"
 )
@@ -16,7 +17,7 @@ type API struct {
 	Access  access.Access
 }
 
-func (api *API) Handler(conn *websocket.Conn, db *pgme.Database, authorized bool, msg []byte) jsonrpc2.Response {
+func (api *API) Handler(conn *websocket.Conn, db *pgme.Database, userId string, msg []byte) (string, jsonrpc2.Response) {
 
 	var req jsonrpc2.Request
 	response := jsonrpc2.Response{
@@ -32,18 +33,25 @@ func (api *API) Handler(conn *websocket.Conn, db *pgme.Database, authorized bool
 		response.ID = req.ID
 		var result any
 
-		if authorized {
+		if userId != "" {
 			if method, ok := api.methods[req.Method]; ok {
-				result, response.Error = method(db, req.Params)
+				result, response.Error = method(db, userId, req.Params)
 			} else {
+				log.WithFields(log.Fields{
+					"id":     req.ID,
+					"method": req.Method,
+					"addr":   conn.RemoteAddr(),
+				}).Error("Метод не найден")
 				response.Error = &jsonrpc2.Error{
 					Code:    jsonrpc2.MethodNotFound,
 					Message: "Method not found",
 				}
 			}
 		} else {
-			if req.Method == "login" {
-				result, response.Error = api.methods["login"](db, req.Params)
+			if req.Method == login.Method {
+				if result, response.Error = api.methods[login.Method](db, userId, req.Params); response.Error == nil {
+					userId = result.(login.Response).Account.Id
+				}
 			} else {
 				response.Error = &jsonrpc2.Error{
 					Code:    401,
@@ -67,11 +75,12 @@ func (api *API) Handler(conn *websocket.Conn, db *pgme.Database, authorized bool
 		}
 	}
 
-	return response
+	return userId, response
 }
 
 func (api *API) Register() {
 	api.methods = make(jsonrpc2.Methods)
 	api.Version.Register(api.methods)
+	api.Access.Register(api.methods)
 	api.Access.Register(api.methods)
 }
