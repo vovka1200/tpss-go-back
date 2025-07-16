@@ -2,84 +2,54 @@ package v1
 
 import (
 	"encoding/json"
-	"github.com/fasthttp/websocket"
 	log "github.com/sirupsen/logrus"
 	"github.com/vovka1200/pgme"
+	common "github.com/vovka1200/tpss-go-back/api"
 	"github.com/vovka1200/tpss-go-back/api/v1/access"
 	"github.com/vovka1200/tpss-go-back/api/v1/access/login"
 	"github.com/vovka1200/tpss-go-back/api/v1/version"
 	"github.com/vovka1200/tpss-go-back/jsonrpc2"
+	"github.com/vovka1200/tpss-go-back/websocket"
 )
 
 type API struct {
-	methods jsonrpc2.Methods
+	methods common.Methods
 	Version version.Version
 	Access  access.Access
 }
 
-func (api *API) Handler(conn *websocket.Conn, db *pgme.Database, userId string, msg []byte) (string, jsonrpc2.Response) {
-
-	var req jsonrpc2.Request
-	response := jsonrpc2.Response{
-		JSONRPC: "2.0",
-	}
-
-	if err := json.Unmarshal(msg, &req); err == nil {
-		log.WithFields(log.Fields{
-			"id":     req.ID,
-			"method": req.Method,
-			"addr":   conn.RemoteAddr(),
-		}).Debug("Запрос")
-		response.ID = req.ID
-		var result any
-
-		if userId != "" {
-			if method, ok := api.methods[req.Method]; ok {
-				result, response.Error = method(db, userId, req.Params)
-			} else {
-				log.WithFields(log.Fields{
-					"id":     req.ID,
-					"method": req.Method,
-					"addr":   conn.RemoteAddr(),
-				}).Error("Метод не найден")
-				response.Error = &jsonrpc2.Error{
-					Code:    jsonrpc2.MethodNotFound,
-					Message: "Method not found",
-				}
-			}
+func (api *API) Handler(state *websocket.State, db *pgme.Database, method string, params json.RawMessage) (any, jsonrpc2.Error) {
+	if state.UserId != "" {
+		// Если соединение авторизовано
+		if method, ok := api.methods[method]; ok {
+			return method(db, state, params)
 		} else {
-			if req.Method == login.Method {
-				if result, response.Error = api.methods[login.Method](db, userId, req.Params); response.Error == nil {
-					userId = result.(login.Response).Account.Id
-				}
-			} else {
-				response.Error = &jsonrpc2.Error{
-					Code:    401,
-					Message: "Unauthorized",
-				}
-			}
-		}
-		if response.Result, err = json.Marshal(result); err != nil {
-			log.Error(err)
-			response.Error = &jsonrpc2.Error{
-				Code:    500,
-				Message: "Internal error",
+			log.WithFields(log.Fields{
+				"method": method,
+				"addr":   state.Conn.RemoteAddr(),
+			}).Error("Метод не найден")
+			return nil, &jsonrpc2.RPCError{
+				Code:    jsonrpc2.MethodNotFound,
+				Message: "Method not found",
 			}
 		}
 	} else {
-		log.Error(err)
-		response.ID = nil
-		response.Error = &jsonrpc2.Error{
-			Code:    jsonrpc2.ParseError,
-			Message: err.Error(),
+		// Иначе если запрос аутентификации
+		if method == login.Method {
+			if result, err := api.methods[login.Method](db, state, params); err == nil {
+				state.UserId = result.(login.Response).Account.Id
+				return result, nil
+			}
+		}
+		return nil, &jsonrpc2.RPCError{
+			Code:    jsonrpc2.Unauthorized,
+			Message: "Unauthorized",
 		}
 	}
-
-	return userId, response
 }
 
 func (api *API) Register() {
-	api.methods = make(jsonrpc2.Methods)
+	api.methods = make(common.Methods)
 	api.Version.Register(api.methods)
 	api.Access.Register(api.methods)
 	api.Access.Register(api.methods)

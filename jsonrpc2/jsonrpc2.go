@@ -3,7 +3,6 @@ package jsonrpc2
 import (
 	"encoding/json"
 	log "github.com/sirupsen/logrus"
-	"github.com/vovka1200/pgme"
 )
 
 const MethodNotFound int = -32601
@@ -23,56 +22,77 @@ type Response struct {
 	JSONRPC string          `json:"jsonrpc"`
 	ID      any             `json:"id"`
 	Result  json.RawMessage `json:"result,omitempty"`
-	Error   *Error          `json:"error,omitempty"`
+	Error   Error           `json:"error,omitempty"`
 }
 
-type Error struct {
+type RPCError struct {
 	Code    int             `json:"code"`
 	Message string          `json:"message"`
 	Data    json.RawMessage `json:"data,omitempty"`
 }
 
-type Handler func(*pgme.Database, string, json.RawMessage) (any, *Error)
-type Methods map[string]Handler
+type Error *RPCError
 
-func UnmarshalParams[T any](data []byte, v *T) *Error {
+func UnmarshalParams[T any](data []byte, v *T) error {
 	if data == nil {
 		return nil
 	}
-	if err := json.Unmarshal(data, v); err != nil {
-		log.Error(err)
-		return &Error{
-			Code:    InvalidParams,
-			Message: err.Error(),
-		}
-	}
-	return nil
+	return json.Unmarshal(data, v)
 }
 
-func Marshal(v any) (json.RawMessage, *Error) {
+func Marshal(v any) (json.RawMessage, Error) {
 	if b, err := json.Marshal(v); err == nil {
 		return b, nil
 	} else {
 		log.Error(err)
-		return nil, &Error{
+		return nil, &RPCError{
 			Code:    InternalError,
 			Message: err.Error(),
 		}
 	}
 }
 
-func NewResponse() Response {
+func NewResponse(id any) Response {
 	return Response{
 		JSONRPC: "2.0",
+		ID:      id,
 	}
 }
 
-func NewError(code int, message string) Response {
+func NewErrorResponse(id any, code int, message string) Response {
 	return Response{
 		JSONRPC: "2.0",
-		Error: &Error{
+		ID:      id,
+		Error: &RPCError{
 			Code:    code,
 			Message: message,
 		},
+	}
+}
+
+func Handler(msg []byte, handler func(request Request) (any, Error)) ([]byte, error) {
+	var request Request
+	var response Response
+	var err error
+	var buffer []byte
+	var result any
+	if err = json.Unmarshal(msg, &request); err == nil {
+		response = NewResponse(request.ID)
+		if result, response.Error = handler(request); err == nil {
+			if response.Result, err = json.Marshal(result); err == nil {
+				if buffer, err = json.Marshal(response); err == nil {
+					return buffer, nil
+				}
+			}
+		}
+	} else {
+		response = NewErrorResponse(request.ID, ParseError, err.Error())
+	}
+	log.Error(err)
+	if buffer, err := json.Marshal(response); err == nil {
+		return buffer, nil
+	} else {
+		log.Error(err)
+		return nil, err
 	}
 }

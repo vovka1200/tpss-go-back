@@ -4,10 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	log "github.com/sirupsen/logrus"
 	"github.com/vovka1200/pgme"
+	"github.com/vovka1200/tpss-go-back/api"
 	"github.com/vovka1200/tpss-go-back/api/v1/access/users"
 	"github.com/vovka1200/tpss-go-back/jsonrpc2"
+	"github.com/vovka1200/tpss-go-back/websocket"
 )
 
 const Method = "access.login"
@@ -24,18 +27,21 @@ type Response struct {
 	Account users.User `json:"account"`
 }
 
-func (l *Login) Register(methods jsonrpc2.Methods) {
-	methods[Method] = l.Handler
+func (l *Login) Register(methods api.Methods) {
+	methods[Method] = l.Authorize
 }
 
-func (l *Login) Handler(db *pgme.Database, userId string, data json.RawMessage) (any, *jsonrpc2.Error) {
+func (l *Login) Authorize(db *pgme.Database, state *websocket.State, data json.RawMessage) (any, jsonrpc2.Error) {
 	params := Params{}
-	if err := jsonrpc2.UnmarshalParams[Params](data, &params); err == nil {
+	var err error
+	var conn *pgxpool.Conn
+	if err = jsonrpc2.UnmarshalParams[Params](data, &params); err == nil {
 		log.WithFields(log.Fields{
 			"username": params.Username,
-		}).Info("Login")
+			"ip":       state.Conn.RemoteAddr(),
+		}).Info("Параметры")
 		ctx := context.Background()
-		if conn, err := db.NewConnection(ctx); err == nil {
+		if conn, err = db.NewConnection(ctx); err == nil {
 			defer db.Disconnect(conn)
 			rows, _ := conn.Query(ctx, `
 				SELECT 
@@ -54,25 +60,24 @@ func (l *Login) Handler(db *pgme.Database, userId string, data json.RawMessage) 
 			)
 			response := Response{}
 			if response.Account, err = pgx.CollectOneRow[users.User](rows, pgx.RowToStructByNameLax[users.User]); err == nil {
+				state.UserId = response.Account.Id
 				log.WithFields(log.Fields{
 					"username": params.Username,
+					"ip":       state.Conn.RemoteAddr(),
 				}).Info("Авторизован")
 				return response, nil
-			} else {
-				log.Error(err)
-				return nil, &jsonrpc2.Error{
-					Code:    401,
-					Message: "Access denied",
-				}
-			}
-		} else {
-			log.Error(err)
-			return nil, &jsonrpc2.Error{
-				Code:    500,
-				Message: err.Error(),
 			}
 		}
 	} else {
-		return nil, err
+		log.Error(err)
+		return nil, &jsonrpc2.RPCError{
+			Code:    jsonrpc2.InvalidParams,
+			Message: err.Error(),
+		}
+	}
+	log.Error(err)
+	return nil, &jsonrpc2.RPCError{
+		Code:    500,
+		Message: err.Error(),
 	}
 }
