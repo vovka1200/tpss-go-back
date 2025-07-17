@@ -36,10 +36,12 @@ func (api *API) Handler(state *websocket.State, db *pgme.Database, method string
 	} else {
 		// Иначе если запрос аутентификации
 		if method == login.Method {
-			if result, err := api.methods[login.Method](db, state, params); err == nil {
+			var result any
+			var err jsonrpc2.Error
+			if result, err = api.methods[login.Method](db, state, params); result != nil {
 				state.UserId = result.(login.Response).Account.Id
-				return result, nil
 			}
+			return result, err
 		}
 		return nil, &jsonrpc2.RPCError{
 			Code:    jsonrpc2.Unauthorized,
