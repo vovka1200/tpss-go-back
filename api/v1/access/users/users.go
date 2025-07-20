@@ -8,11 +8,13 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/vovka1200/pgme"
 	"github.com/vovka1200/tpss-go-back/api"
+	"github.com/vovka1200/tpss-go-back/api/v1/access/users/user"
 	"github.com/vovka1200/tpss-go-back/jsonrpc2"
 	"github.com/vovka1200/tpss-go-back/websocket"
 )
 
 type Users struct {
+	User user.User
 }
 
 type Params struct {
@@ -20,14 +22,15 @@ type Params struct {
 }
 
 type Response struct {
-	Users []User `json:"users"`
+	Users []user.User `json:"users"`
 }
 
 func (u *Users) Register(methods api.Methods) {
-	methods["access.users"] = u.Handler
+	methods["access.users.list"] = u.HandleList
+	u.User.Register(methods)
 }
 
-func (u *Users) Handler(db *pgme.Database, state *websocket.State, data json.RawMessage) (any, jsonrpc2.Error) {
+func (u *Users) HandleList(db *pgme.Database, state *websocket.State, data json.RawMessage) (any, jsonrpc2.Error) {
 	params := Params{}
 	var err error
 	var conn *pgxpool.Conn
@@ -53,7 +56,7 @@ func (u *Users) Handler(db *pgme.Database, state *websocket.State, data json.Raw
 				params.Filter,
 			)
 			response := Response{}
-			if response.Users, err = pgx.CollectRows[User](rows, pgx.RowToStructByNameLax[User]); err == nil {
+			if response.Users, err = pgx.CollectRows[user.User](rows, pgx.RowToStructByNameLax[user.User]); err == nil {
 				return response, nil
 			}
 		}
