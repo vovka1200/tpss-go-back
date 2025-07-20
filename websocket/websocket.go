@@ -100,7 +100,7 @@ func closeHandler(code int, text string) error {
 func unAuthorizedLoop(responseLoop chan []byte) chan bool {
 	quitChan := make(chan bool)
 	buffer, _ := jsonrpc2.Marshal(
-		jsonrpc2.NewErrorResponse(nil, jsonrpc2.Unauthorized, "require authorization"),
+		jsonrpc2.NewErrorResponse(nil, jsonrpc2.Unauthorized, "authorization required"),
 	)
 	go func() {
 		for {
