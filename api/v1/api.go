@@ -6,7 +6,7 @@ import (
 	"github.com/vovka1200/pgme"
 	common "github.com/vovka1200/tpss-go-back/api"
 	"github.com/vovka1200/tpss-go-back/api/v1/access"
-	"github.com/vovka1200/tpss-go-back/api/v1/access/login"
+	"github.com/vovka1200/tpss-go-back/api/v1/access/users/user"
 	"github.com/vovka1200/tpss-go-back/api/v1/version"
 	"github.com/vovka1200/tpss-go-back/jsonrpc2"
 	"github.com/vovka1200/tpss-go-back/websocket"
@@ -35,11 +35,11 @@ func (api *API) Handler(state *websocket.State, db *pgme.Database, method string
 		}
 	} else {
 		// Иначе если запрос аутентификации
-		if method == login.Method {
+		if method == user.AuthorizeMethod {
 			var result any
 			var err jsonrpc2.Error
-			if result, err = api.methods[login.Method](db, state, params); result != nil {
-				state.UserId = result.(login.Response).Account.Id
+			if result, err = api.methods[user.AuthorizeMethod](db, state, params); result != nil {
+				state.UserId = result.(user.AuthorizeResponse).Account.Id
 			}
 			return result, err
 		}
