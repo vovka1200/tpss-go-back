@@ -7,6 +7,7 @@ import (
 	common "github.com/vovka1200/tpss-go-back/api"
 	"github.com/vovka1200/tpss-go-back/api/v1/access"
 	"github.com/vovka1200/tpss-go-back/api/v1/access/users/user"
+	"github.com/vovka1200/tpss-go-back/api/v1/crm"
 	"github.com/vovka1200/tpss-go-back/api/v1/version"
 	"github.com/vovka1200/tpss-go-back/jsonrpc2"
 	"github.com/vovka1200/tpss-go-back/websocket"
@@ -16,6 +17,7 @@ type API struct {
 	methods common.Methods
 	Version version.Version
 	Access  access.Access
+	CRM     crm.CRM
 }
 
 func (api *API) Handler(state *websocket.State, db *pgme.Database, method string, params json.RawMessage) (any, jsonrpc2.Error) {
@@ -54,5 +56,5 @@ func (api *API) Register() {
 	api.methods = make(common.Methods)
 	api.Version.Register(api.methods)
 	api.Access.Register(api.methods)
-	api.Access.Register(api.methods)
+	api.CRM.Register(api.methods)
 }
