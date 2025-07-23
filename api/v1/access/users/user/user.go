@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-const AuthorizeMethod = "access.users.user.login"
+const AuthenticationMethod = "access.users.user.login"
 
 type User struct {
 	Id       string    `json:"id"`
@@ -26,26 +26,29 @@ type User struct {
 }
 
 func (u *User) Register(methods api.Methods) {
-	methods[AuthorizeMethod] = u.HandleAuthorize
+	methods[AuthenticationMethod] = u.HandleAuthentication
 }
 
 type AuthorizeParams struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
+	Token    string `json:"token"`
 }
 
 type AuthorizeResponse struct {
 	Account User          `json:"account"`
 	Matrix  matrix.Matrix `json:"matrix"`
+	Token   string        `json:"token"`
 }
 
-func (u *User) HandleAuthorize(db *pgme.Database, state *websocket.State, data json.RawMessage) (any, jsonrpc2.Error) {
+func (u *User) HandleAuthentication(db *pgme.Database, state *websocket.State, data json.RawMessage) (any, jsonrpc2.Error) {
 	params := AuthorizeParams{}
 	var err error
 	var conn *pgxpool.Conn
 	if err = jsonrpc2.UnmarshalParams[AuthorizeParams](data, &params); err == nil {
 		log.WithFields(log.Fields{
 			"username": params.Username,
+			"token":    params.Token,
 			"ip":       state.Conn.RemoteAddr(),
 		}).Info("Параметры")
 		ctx := context.Background()
@@ -65,17 +68,21 @@ func (u *User) HandleAuthorize(db *pgme.Database, state *websocket.State, data j
 				    		'object', o.name,
 				    		'methods', r.access
 				    	)
-				    ) AS matrix
+				    ) AS matrix,
+				    (SELECT token FROM access.add_session(u.id)) as token
 				FROM access.users u
 				JOIN access.members m ON m.user_id=u.id
 				JOIN access.groups g ON g.id=m.group_id
+				LEFT JOIN access.sessions s ON s.user_id=u.id 
 				LEFT JOIN access.rules r ON r.group_id = m.group_id
 				LEFT JOIN access.objects o ON o.id = r.object_id
-				WHERE username=$1
-				  AND password=crypt($2,password)
+				WHERE username=$1 AND password=crypt($2,password) 
+				   OR 
+				      s.token=$3 AND NOT s.archived
 				GROUP BY u.id`,
 				params.Username,
 				params.Password,
+				params.Token,
 			)
 			response := AuthorizeResponse{}
 			if response, err = pgx.CollectOneRow[AuthorizeResponse](rows, pgx.RowToStructByNameLax[AuthorizeResponse]); err == nil {

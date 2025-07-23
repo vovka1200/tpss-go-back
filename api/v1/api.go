@@ -37,10 +37,10 @@ func (api *API) Handler(state *websocket.State, db *pgme.Database, method string
 		}
 	} else {
 		// Иначе если запрос аутентификации
-		if method == user.AuthorizeMethod {
+		if method == user.AuthenticationMethod {
 			var result any
 			var err jsonrpc2.Error
-			if result, err = api.methods[user.AuthorizeMethod](db, state, params); result != nil {
+			if result, err = api.methods[user.AuthenticationMethod](db, state, params); result != nil {
 				state.UserId = result.(user.AuthorizeResponse).Account.Id
 			}
 			return result, err
