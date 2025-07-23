@@ -103,6 +103,7 @@ func unAuthorizedLoop(responseLoop chan []byte) chan bool {
 		jsonrpc2.NewErrorResponse(nil, jsonrpc2.Unauthorized, "authorization required"),
 	)
 	go func() {
+		responseLoop <- buffer
 		for {
 			select {
 			case <-quitChan:
