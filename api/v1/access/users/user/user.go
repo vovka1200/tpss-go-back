@@ -36,9 +36,9 @@ type AuthorizeParams struct {
 }
 
 type AuthorizeResponse struct {
-	Account User          `json:"account"`
-	Matrix  matrix.Matrix `json:"matrix"`
-	Token   string        `json:"token"`
+	Account User         `json:"account"`
+	Matrix  matrix.Rules `json:"matrix"`
+	Token   string       `json:"token"`
 }
 
 func (u *User) HandleAuthentication(db *pgme.Database, state *websocket.State, data json.RawMessage) (any, jsonrpc2.Error) {
@@ -63,19 +63,22 @@ func (u *User) HandleAuthentication(db *pgme.Database, state *websocket.State, d
 				    	'groups',jsonb_agg(g.name),
 				    	'created', u.created
 				    ) AS account,
-				    jsonb_agg(
-				    	jsonb_build_object(
-				    		'object', o.name,
-				    		'methods', r.access
-				    	)
+				    (SELECT jsonb_agg(
+							jsonb_build_object(
+								'object', o.name,
+								'access', r.access
+							)
+						)
+				     FROM access.rules r
+				     JOIN access.objects o ON o.id = r.object_id
+					 JOIN access.members m ON m.group_id=r.group_id
+				     WHERE m.user_id=u.id
 				    ) AS matrix,
 				    (SELECT token FROM access.add_session(u.id)) as token
 				FROM access.users u
 				JOIN access.members m ON m.user_id=u.id
 				JOIN access.groups g ON g.id=m.group_id
-				LEFT JOIN access.sessions s ON s.user_id=u.id 
-				LEFT JOIN access.rules r ON r.group_id = m.group_id
-				LEFT JOIN access.objects o ON o.id = r.object_id
+				LEFT JOIN access.sessions s ON s.user_id=u.id
 				WHERE username=$1 AND password=crypt($2,password) 
 				   OR 
 				      s.token=$3 AND NOT s.archived

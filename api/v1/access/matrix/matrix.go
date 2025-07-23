@@ -1,8 +1,8 @@
 package matrix
 
-type Matrix []Rule
+type Rules []Rule
 
 type Rule struct {
-	Object  string   `json:"object"`
-	Methods []string `json:"methods"`
+	Object string   `json:"object"`
+	Access []string `json:"access"`
 }
