@@ -14,6 +14,7 @@ import (
 )
 
 type Groups struct {
+	Group group.Group `json:"group"`
 }
 
 type Params struct {
@@ -26,6 +27,7 @@ type Response struct {
 
 func (g *Groups) Register(methods api.Methods) {
 	methods["access.groups.list"] = g.HandleList
+	g.Group.Register(methods)
 }
 
 func (g *Groups) HandleList(db *pgme.Database, state *websocket.State, data json.RawMessage) (any, jsonrpc2.Error) {
