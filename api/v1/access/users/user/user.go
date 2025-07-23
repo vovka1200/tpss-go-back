@@ -100,7 +100,7 @@ func (u *User) HandleAuthentication(db *pgme.Database, state *websocket.State, d
 				if errors.Is(err, pgx.ErrNoRows) {
 					return nil, &jsonrpc2.RPCError{
 						Code:    jsonrpc2.Unauthorized,
-						Message: "authorization required",
+						Message: "authorization failed",
 					}
 				}
 			}
