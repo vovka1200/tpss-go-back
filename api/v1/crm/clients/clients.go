@@ -45,7 +45,7 @@ func (c *Clients) HandleList(db *pgme.Database, state *websocket.State, data jso
 				    c.name, 
 				    c.created
 				FROM crm.clients c
-				WHERE (c.name ~* $1::text OR c.name ~* $1::text)
+				WHERE c.name ~* $1::text
 				LIMIT 100
 				`,
 				params.Filter,
