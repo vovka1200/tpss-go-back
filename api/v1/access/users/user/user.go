@@ -3,6 +3,7 @@ package user
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	log "github.com/sirupsen/logrus"
@@ -84,6 +85,14 @@ func (u *User) HandleAuthorize(db *pgme.Database, state *websocket.State, data j
 					"ip":       state.Conn.RemoteAddr(),
 				}).Info("Авторизован")
 				return response, nil
+			} else {
+				log.Error(err)
+				if errors.Is(err, pgx.ErrNoRows) {
+					return nil, &jsonrpc2.RPCError{
+						Code:    jsonrpc2.Unauthorized,
+						Message: "authorization required",
+					}
+				}
 			}
 		}
 	} else {
