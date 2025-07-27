@@ -12,31 +12,21 @@ type ConnectionHandler func(*State)
 type MessageHandler func(*State, []byte) ([]byte, error)
 
 type State struct {
-	Conn       *ws.Conn
-	UserId     string
-	Authorized bool
+	Conn   *ws.Conn
+	UserId string
 }
 
 func Handler(ctx *fasthttp.RequestCtx, handler MessageHandler) error {
 	return upgrade(ctx, func(state *State) {
-		responseQuitChan, responseChan := responseLoop(state.Conn)
-		defer close(responseQuitChan)
-		keepAliveChan := keepAliveLoop(state.Conn)
-		defer close(keepAliveChan)
-		unAuthorizedChan := unAuthorizedLoop(responseChan)
-		defer close(unAuthorizedChan)
+		sendWorkerQuit, sendChan := sendWorker(state.Conn)
+		defer close(sendWorkerQuit)
+		keepAliveWorkerQuit := keepAliveWorker(state.Conn)
+		defer close(keepAliveWorkerQuit)
+		sendChan <- unauthorized()
 		for {
 			if msgType, msg, err := state.Conn.ReadMessage(); err == nil {
 				if response, err := handler(state, msg); err == nil {
-					if state.UserId != "" && !state.Authorized {
-						state.Authorized = true
-						unAuthorizedChan <- true
-						log.WithFields(log.Fields{
-							"user": state.UserId,
-							"addr": state.Conn.RemoteAddr(),
-						}).Info("Соединение авторизовано")
-					}
-					responseChan <- response
+					sendChan <- response
 				} else {
 					log.WithFields(log.Fields{
 						"user": state.UserId,
@@ -61,11 +51,8 @@ func Handler(ctx *fasthttp.RequestCtx, handler MessageHandler) error {
 				break
 			}
 		}
-		keepAliveChan <- true
-		if !state.Authorized {
-			unAuthorizedChan <- true
-		}
-		responseQuitChan <- true
+		keepAliveWorkerQuit <- true
+		sendWorkerQuit <- true
 		log.WithFields(log.Fields{
 			"user": state.UserId,
 			"addr": state.Conn.RemoteAddr(),
@@ -97,26 +84,7 @@ func closeHandler(code int, text string) error {
 	return nil
 }
 
-func unAuthorizedLoop(responseLoop chan []byte) chan bool {
-	quitChan := make(chan bool)
-	buffer, _ := jsonrpc2.Marshal(
-		jsonrpc2.NewErrorResponse(nil, jsonrpc2.Unauthorized, "authorization required"),
-	)
-	go func() {
-		responseLoop <- buffer
-		for {
-			select {
-			case <-quitChan:
-				return
-			case <-time.After(3 * time.Second):
-				responseLoop <- buffer
-			}
-		}
-	}()
-	return quitChan
-}
-
-func keepAliveLoop(conn *ws.Conn) chan bool {
+func keepAliveWorker(conn *ws.Conn) chan bool {
 	quitChan := make(chan bool)
 	go func() {
 		for {
@@ -134,7 +102,7 @@ func keepAliveLoop(conn *ws.Conn) chan bool {
 	return quitChan
 }
 
-func responseLoop(conn *ws.Conn) (chan bool, chan []byte) {
+func sendWorker(conn *ws.Conn) (chan bool, chan []byte) {
 	bufferChan := make(chan []byte)
 	quitChan := make(chan bool)
 	go func() {
@@ -152,4 +120,11 @@ func responseLoop(conn *ws.Conn) (chan bool, chan []byte) {
 		}
 	}()
 	return quitChan, bufferChan
+}
+
+func unauthorized() []byte {
+	buffer, _ := jsonrpc2.Marshal(
+		jsonrpc2.NewErrorResponse(nil, jsonrpc2.Unauthorized, "authorization required"),
+	)
+	return buffer
 }
