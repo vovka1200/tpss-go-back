@@ -101,8 +101,8 @@ func (u *User) HandleAuthentication(db *pgme.Database, state *websocket.State, d
 				log.Error(err)
 				if errors.Is(err, pgx.ErrNoRows) {
 					return nil, &jsonrpc2.RPCError{
-						Code:    jsonrpc2.AccessDenied,
-						Message: "Доступ ограничен",
+						Code:    jsonrpc2.Unauthorized,
+						Message: "Требуется аутентификация",
 					}
 				}
 			}
