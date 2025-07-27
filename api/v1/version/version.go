@@ -9,6 +9,7 @@ import (
 )
 
 const Number string = "1.0.0"
+const Method = "version"
 
 type Version struct {
 }
@@ -22,7 +23,7 @@ type Answer struct {
 }
 
 func (v *Version) Register(methods api.Methods) {
-	methods["version"] = v.Handler
+	methods[Method] = v.Handler
 }
 
 func (v *Version) Handler(db *pgme.Database, state *websocket.State, data json.RawMessage) (any, jsonrpc2.Error) {

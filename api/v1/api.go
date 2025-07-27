@@ -40,14 +40,19 @@ func (api *API) Handler(state *websocket.State, db *pgme.Database, method string
 		if method == user.AuthenticationMethod {
 			var result any
 			var err jsonrpc2.Error
-			if result, err = api.methods[user.AuthenticationMethod](db, state, params); result != nil {
-				state.UserId = result.(user.AuthorizeResponse).Account.Id
+			if result, err = api.methods[method](db, state, params); result != nil {
+				if result.(user.AuthorizeResponse).Account.Id != "" {
+					state.UserId = result.(user.AuthorizeResponse).Account.Id
+				}
 			}
 			return result, err
 		}
+		if method == version.Method {
+			return api.methods[method](db, state, params)
+		}
 		return nil, &jsonrpc2.RPCError{
 			Code:    jsonrpc2.Unauthorized,
-			Message: "Unauthorized",
+			Message: "Требуется аутентификация",
 		}
 	}
 }
