@@ -36,9 +36,10 @@ type AuthorizeParams struct {
 }
 
 type AuthorizeResponse struct {
-	Account User         `json:"account"`
-	Matrix  matrix.Rules `json:"matrix"`
-	Token   string       `json:"token"`
+	Account        User         `json:"account"`
+	Matrix         matrix.Rules `json:"matrix"`
+	Token          string       `json:"token"`
+	TokenLiveUntil string       `json:"token_live_until" db:"token_live_until"`
 }
 
 func (u *User) HandleAuthentication(db *pgme.Database, state *websocket.State, data json.RawMessage) (any, jsonrpc2.Error) {
@@ -74,7 +75,8 @@ func (u *User) HandleAuthentication(db *pgme.Database, state *websocket.State, d
 					 JOIN access.members m ON m.group_id=r.group_id
 				     WHERE m.user_id=u.id
 				    ) AS matrix,
-				    (SELECT token FROM access.add_session(u.id)) as token
+				    (SELECT token FROM access.add_session(u.id)) as token,
+				    now()+'1d'::interval as token_live_until
 				FROM access.users u
 				JOIN access.members m ON m.user_id=u.id
 				JOIN access.groups g ON g.id=m.group_id
