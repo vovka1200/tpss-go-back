@@ -52,6 +52,10 @@ func (c *Clients) HandleList(db *pgme.Database, state *websocket.State, data jso
 			)
 			response := Response{}
 			if response.Clients, err = pgx.CollectRows[client.Client](rows, pgx.RowToStructByNameLax[client.Client]); err == nil {
+				log.WithFields(log.Fields{
+					"filter": params.Filter,
+					"count":  len(response.Clients),
+				}).Info("Результат")
 				return response, nil
 			}
 		}

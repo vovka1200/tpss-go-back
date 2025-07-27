@@ -56,6 +56,10 @@ func (g *Groups) HandleList(db *pgme.Database, state *websocket.State, data json
 			)
 			response := Response{}
 			if response.Groups, err = pgx.CollectRows[group.Group](rows, pgx.RowToStructByNameLax[group.Group]); err == nil {
+				log.WithFields(log.Fields{
+					"filter": params.Filter,
+					"count":  len(response.Groups),
+				}).Info("Результат")
 				return response, nil
 			}
 		}
