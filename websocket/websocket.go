@@ -124,7 +124,7 @@ func sendWorker(conn *ws.Conn) (chan bool, chan []byte) {
 
 func unauthorized() []byte {
 	buffer, _ := jsonrpc2.Marshal(
-		jsonrpc2.NewErrorResponse(nil, jsonrpc2.Unauthorized, "authorization required"),
+		jsonrpc2.NewErrorResponse(nil, jsonrpc2.Unauthorized, "Требуется аутентификация"),
 	)
 	return buffer
 }
