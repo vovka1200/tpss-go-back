@@ -39,7 +39,7 @@ type AuthorizeResponse struct {
 	Account        User         `json:"account"`
 	Matrix         matrix.Rules `json:"matrix"`
 	Token          string       `json:"token"`
-	TokenLiveUntil string       `json:"token_live_until" db:"token_live_until"`
+	TokenLiveUntil time.Time    `json:"token_live_until" db:"token_live_until"`
 }
 
 func (u *User) HandleAuthentication(db *pgme.Database, state *websocket.State, data json.RawMessage) (any, jsonrpc2.Error) {
@@ -101,8 +101,8 @@ func (u *User) HandleAuthentication(db *pgme.Database, state *websocket.State, d
 				log.Error(err)
 				if errors.Is(err, pgx.ErrNoRows) {
 					return nil, &jsonrpc2.RPCError{
-						Code:    jsonrpc2.Unauthorized,
-						Message: "authorization failed",
+						Code:    jsonrpc2.AccessDenied,
+						Message: "Доступ ограничен",
 					}
 				}
 			}
