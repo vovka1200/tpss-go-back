@@ -18,6 +18,7 @@ type Users struct {
 }
 
 type Params struct {
+	Id     string `json:"id"`
 	Filter string `json:"filter"`
 }
 
@@ -36,6 +37,7 @@ func (u *Users) HandleList(db *pgme.Database, state *websocket.State, data json.
 	var conn *pgxpool.Conn
 	if err = jsonrpc2.UnmarshalParams[Params](data, &params); err == nil {
 		log.WithFields(log.Fields{
+			"id":     params.Id,
 			"filter": params.Filter,
 		}).Info("Поиск")
 		ctx := context.Background()
@@ -51,8 +53,10 @@ func (u *Users) HandleList(db *pgme.Database, state *websocket.State, data json.
 				FROM access.users u
 				JOIN access.members m ON m.user_id=u.id
 				JOIN access.groups g ON g.id=m.group_id
-				WHERE (u.name ~* $1::text OR g.name ~* $1::text)
+				WHERE (u.name ~* $2::text OR g.name ~* $2::text)
+				  AND ($1='' OR u.id=$1::uuid) 
 				GROUP BY 1,2,3,4`,
+				params.Id,
 				params.Filter,
 			)
 			response := Response{}
