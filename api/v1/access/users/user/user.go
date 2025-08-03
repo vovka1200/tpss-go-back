@@ -9,7 +9,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/vovka1200/pgme"
 	"github.com/vovka1200/tpss-go-back/api"
-	"github.com/vovka1200/tpss-go-back/api/v1/access/matrix"
 	"github.com/vovka1200/tpss-go-back/jsonrpc2"
 	"github.com/vovka1200/tpss-go-back/websocket"
 	"time"
@@ -36,10 +35,9 @@ type AuthorizeParams struct {
 }
 
 type AuthorizeResponse struct {
-	Account        User         `json:"account"`
-	Matrix         matrix.Rules `json:"matrix"`
-	Token          string       `json:"token"`
-	TokenLiveUntil time.Time    `json:"token_live_until" db:"token_live_until"`
+	Account        User      `json:"account"`
+	Token          string    `json:"token"`
+	TokenLiveUntil time.Time `json:"token_live_until" db:"token_live_until"`
 }
 
 func (u *User) HandleAuthentication(db *pgme.Database, state *websocket.State, data json.RawMessage) (any, jsonrpc2.Error) {
