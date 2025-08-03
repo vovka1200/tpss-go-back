@@ -34,17 +34,11 @@ func (p *CustomParams) Register(methods api.Methods) {
 }
 
 func (p *CustomParams) HandleList(db *pgme.Database, state *websocket.State, data json.RawMessage) (any, jsonrpc2.Error) {
-	params := Params{}
-	var err error
-	var conn *pgxpool.Conn
-	if err = jsonrpc2.UnmarshalParams[Params](data, &params); err == nil {
+	return jsonrpc2.QueryWithParams[Params](db, data, func(ctx context.Context, conn *pgxpool.Conn, params Params) (any, jsonrpc2.Error) {
 		log.WithFields(log.Fields{
 			"filter": params.Filter,
 		}).Info("Поиск")
-		ctx := context.Background()
-		if conn, err = db.NewConnection(ctx); err == nil {
-			defer db.Disconnect(conn)
-			rows, _ := conn.Query(ctx, `
+		rows, _ := conn.Query(ctx, `
 				SELECT 
 				    p.name,
 					p.type,
@@ -55,21 +49,21 @@ func (p *CustomParams) HandleList(db *pgme.Database, state *websocket.State, dat
 				   OR p.default ~* $1::text
 				LIMIT 100
 				`,
-				params.Filter,
-			)
-			response := Response{}
-			if response.Params, err = pgx.CollectRows[CustomParam](rows, pgx.RowToStructByNameLax[CustomParam]); err == nil {
-				log.WithFields(log.Fields{
-					"filter": params.Filter,
-					"count":  len(response.Params),
-				}).Info("Результат")
-				return response, nil
+			params.Filter,
+		)
+		var err error
+		response := Response{}
+		if response.Params, err = pgx.CollectRows[CustomParam](rows, pgx.RowToStructByNameLax[CustomParam]); err == nil {
+			log.WithFields(log.Fields{
+				"filter": params.Filter,
+				"count":  len(response.Params),
+			}).Info("Результат")
+			return response, nil
+		} else {
+			return nil, &jsonrpc2.RPCError{
+				Code:    jsonrpc2.InternalError,
+				Message: err.Error(),
 			}
 		}
-	}
-	log.Error(err)
-	return nil, &jsonrpc2.RPCError{
-		Code:    500,
-		Message: err.Error(),
-	}
+	})
 }

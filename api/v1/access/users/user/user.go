@@ -43,19 +43,13 @@ type AuthorizeResponse struct {
 }
 
 func (u *User) HandleAuthentication(db *pgme.Database, state *websocket.State, data json.RawMessage) (any, jsonrpc2.Error) {
-
-	return jsonrpc2.DoWithParams[AuthorizeParams](data, func(params AuthorizeParams) (any, jsonrpc2.Error) {
+	return jsonrpc2.QueryWithParams[AuthorizeParams](db, data, func(ctx context.Context, conn *pgxpool.Conn, params AuthorizeParams) (any, jsonrpc2.Error) {
 		log.WithFields(log.Fields{
 			"username": params.Username,
 			"token":    params.Token,
 			"ip":       state.Conn.RemoteAddr(),
 		}).Info("Параметры")
-		var err error
-		var conn *pgxpool.Conn
-		ctx := context.Background()
-		if conn, err = db.NewConnection(ctx); err == nil {
-			defer db.Disconnect(conn)
-			rows, _ := conn.Query(ctx, `
+		rows, _ := conn.Query(ctx, `
 				SELECT 
 				    jsonb_build_object(
 				    	'id',u.id, 
@@ -85,36 +79,29 @@ func (u *User) HandleAuthentication(db *pgme.Database, state *websocket.State, d
 				   OR 
 				      s.token=$3 AND NOT s.archived
 				GROUP BY u.id`,
-				params.Username,
-				params.Password,
-				params.Token,
-			)
-			if response, err := pgx.CollectOneRow[AuthorizeResponse](rows, pgx.RowToStructByNameLax[AuthorizeResponse]); err == nil {
-				state.UserId = response.Account.Id
-				log.WithFields(log.Fields{
-					"username": params.Username,
-					"ip":       state.Conn.RemoteAddr(),
-				}).Info("Авторизован")
-				return response, nil
-			} else {
-				log.Error(err)
-				if errors.Is(err, pgx.ErrNoRows) {
-					return nil, &jsonrpc2.RPCError{
-						Code:    jsonrpc2.Unauthorized,
-						Message: "Требуется аутентификация",
-					}
-				} else {
-					return nil, &jsonrpc2.RPCError{
-						Code:    jsonrpc2.InternalError,
-						Message: err.Error(),
-					}
-				}
-			}
+			params.Username,
+			params.Password,
+			params.Token,
+		)
+		if response, err := pgx.CollectOneRow[AuthorizeResponse](rows, pgx.RowToStructByNameLax[AuthorizeResponse]); err == nil {
+			state.UserId = response.Account.Id
+			log.WithFields(log.Fields{
+				"username": params.Username,
+				"ip":       state.Conn.RemoteAddr(),
+			}).Info("Авторизован")
+			return response, nil
 		} else {
 			log.Error(err)
-			return nil, &jsonrpc2.RPCError{
-				Code:    jsonrpc2.ServiceUnavailable,
-				Message: err.Error(),
+			if errors.Is(err, pgx.ErrNoRows) {
+				return nil, &jsonrpc2.RPCError{
+					Code:    jsonrpc2.Unauthorized,
+					Message: "Требуется аутентификация",
+				}
+			} else {
+				return nil, &jsonrpc2.RPCError{
+					Code:    jsonrpc2.InternalError,
+					Message: err.Error(),
+				}
 			}
 		}
 	})

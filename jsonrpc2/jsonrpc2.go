@@ -1,8 +1,11 @@
 package jsonrpc2
 
 import (
+	"context"
 	"encoding/json"
+	"github.com/jackc/pgx/v5/pgxpool"
 	log "github.com/sirupsen/logrus"
+	"github.com/vovka1200/pgme"
 )
 
 const MethodNotFound int = -32601
@@ -53,6 +56,22 @@ func DoWithParams[T any](data []byte, handler func(v T) (any, Error)) (any, Erro
 			Message: err.Error(),
 		}
 	}
+}
+
+func QueryWithParams[T any](db *pgme.Database, data []byte, handler func(context.Context, *pgxpool.Conn, T) (any, Error)) (any, Error) {
+	return DoWithParams[T](data, func(params T) (any, Error) {
+		ctx := context.Background()
+		if conn, err := db.NewConnection(ctx); err == nil {
+			defer db.Disconnect(conn)
+			return handler(ctx, conn, params)
+		} else {
+			log.Error(err)
+			return nil, &RPCError{
+				Code:    ServiceUnavailable,
+				Message: err.Error(),
+			}
+		}
+	})
 }
 
 func Marshal(v any) (json.RawMessage, Error) {
