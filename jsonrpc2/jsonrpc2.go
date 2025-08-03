@@ -42,6 +42,19 @@ func UnmarshalParams[T any](data []byte, v *T) error {
 	return json.Unmarshal(data, v)
 }
 
+func DoWithParams[T any](data []byte, handler func(v T) (any, Error)) (any, Error) {
+	var params T
+	if err := UnmarshalParams(data, &params); err == nil {
+		return handler(params)
+	} else {
+		log.Error(err)
+		return nil, &RPCError{
+			Code:    InvalidParams,
+			Message: err.Error(),
+		}
+	}
+}
+
 func Marshal(v any) (json.RawMessage, Error) {
 	if b, err := json.Marshal(v); err == nil {
 		return b, nil

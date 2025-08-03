@@ -43,15 +43,15 @@ type AuthorizeResponse struct {
 }
 
 func (u *User) HandleAuthentication(db *pgme.Database, state *websocket.State, data json.RawMessage) (any, jsonrpc2.Error) {
-	params := AuthorizeParams{}
-	var err error
-	var conn *pgxpool.Conn
-	if err = jsonrpc2.UnmarshalParams[AuthorizeParams](data, &params); err == nil {
+
+	return jsonrpc2.DoWithParams[AuthorizeParams](data, func(params AuthorizeParams) (any, jsonrpc2.Error) {
 		log.WithFields(log.Fields{
 			"username": params.Username,
 			"token":    params.Token,
 			"ip":       state.Conn.RemoteAddr(),
 		}).Info("Параметры")
+		var err error
+		var conn *pgxpool.Conn
 		ctx := context.Background()
 		if conn, err = db.NewConnection(ctx); err == nil {
 			defer db.Disconnect(conn)
@@ -89,8 +89,7 @@ func (u *User) HandleAuthentication(db *pgme.Database, state *websocket.State, d
 				params.Password,
 				params.Token,
 			)
-			response := AuthorizeResponse{}
-			if response, err = pgx.CollectOneRow[AuthorizeResponse](rows, pgx.RowToStructByNameLax[AuthorizeResponse]); err == nil {
+			if response, err := pgx.CollectOneRow[AuthorizeResponse](rows, pgx.RowToStructByNameLax[AuthorizeResponse]); err == nil {
 				state.UserId = response.Account.Id
 				log.WithFields(log.Fields{
 					"username": params.Username,
@@ -104,6 +103,11 @@ func (u *User) HandleAuthentication(db *pgme.Database, state *websocket.State, d
 						Code:    jsonrpc2.Unauthorized,
 						Message: "Требуется аутентификация",
 					}
+				} else {
+					return nil, &jsonrpc2.RPCError{
+						Code:    jsonrpc2.InternalError,
+						Message: err.Error(),
+					}
 				}
 			}
 		} else {
@@ -113,16 +117,5 @@ func (u *User) HandleAuthentication(db *pgme.Database, state *websocket.State, d
 				Message: err.Error(),
 			}
 		}
-	} else {
-		log.Error(err)
-		return nil, &jsonrpc2.RPCError{
-			Code:    jsonrpc2.InvalidParams,
-			Message: err.Error(),
-		}
-	}
-	log.Error(err)
-	return nil, &jsonrpc2.RPCError{
-		Code:    500,
-		Message: err.Error(),
-	}
+	})
 }
