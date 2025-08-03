@@ -58,17 +58,6 @@ func (u *User) HandleAuthentication(db *pgme.Database, state *websocket.State, d
 				    	'groups',jsonb_agg(g.name),
 				    	'created', u.created
 				    ) AS account,
-				    (SELECT jsonb_agg(
-							jsonb_build_object(
-								'object', o.name,
-								'access', r.access
-							)
-						)
-				     FROM access.rules r
-				     JOIN access.objects o ON o.id = r.object_id
-					 JOIN access.members m ON m.group_id=r.group_id
-				     WHERE m.user_id=u.id
-				    ) AS matrix,
 				    (SELECT token FROM access.add_session(u.id)) as token,
 				    now()+'1d'::interval as token_live_until
 				FROM access.users u
