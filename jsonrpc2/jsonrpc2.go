@@ -11,6 +11,7 @@ const ParseError int = -32700
 const InternalError int = -32603
 const Unauthorized int = 401
 const AccessDenied int = 403
+const ServiceUnavailable int = 503
 
 type Request struct {
 	JSONRPC string          `json:"jsonrpc"`

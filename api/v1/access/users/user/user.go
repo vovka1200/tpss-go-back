@@ -106,6 +106,12 @@ func (u *User) HandleAuthentication(db *pgme.Database, state *websocket.State, d
 					}
 				}
 			}
+		} else {
+			log.Error(err)
+			return nil, &jsonrpc2.RPCError{
+				Code:    jsonrpc2.ServiceUnavailable,
+				Message: err.Error(),
+			}
 		}
 	} else {
 		log.Error(err)
