@@ -17,15 +17,17 @@ import (
 const AuthenticationMethod = "access.users.user.login"
 
 type User struct {
-	Id       string    `json:"id"`
-	Username string    `json:"username"`
-	Name     string    `json:"name"`
-	Created  time.Time `json:"created"`
-	Groups   []string  `json:"groups"`
+	Id       string     `json:"id"`
+	Username string     `json:"username,omitempty"`
+	Name     string     `json:"name,omitempty"`
+	Created  *time.Time `json:"created,omitempty"`
+	Updated  *time.Time `json:"updated,omitempty"`
+	Groups   []string   `json:"groups,omitempty"`
 }
 
 func (u *User) Register(methods api.Methods) {
 	methods[AuthenticationMethod] = u.HandleAuthentication
+	methods["access.users.user.save"] = u.HandleSave
 }
 
 type AuthorizeParams struct {
@@ -89,6 +91,41 @@ func (u *User) HandleAuthentication(db *pgme.Database, state *websocket.State, d
 					Code:    jsonrpc2.InternalError,
 					Message: err.Error(),
 				}
+			}
+		}
+	})
+}
+
+func (u *User) HandleSave(db *pgme.Database, state *websocket.State, data json.RawMessage) (any, jsonrpc2.Error) {
+	return jsonrpc2.QueryWithParams[User](db, data, func(ctx context.Context, conn *pgxpool.Conn, params User) (any, jsonrpc2.Error) {
+		log.WithFields(log.Fields{
+			"id":         params.Id,
+			"user_name":  params.Name,
+			"user_login": params.Username,
+			"ip":         state.Conn.RemoteAddr(),
+		}).Info("Параметры")
+		rows, _ := conn.Query(ctx, `
+			UPDATE access.users
+			SET username=$2,
+			    name=$3
+			WHERE id=$1
+			RETURNING id
+			`,
+			params.Id,
+			params.Username,
+			params.Name,
+		)
+		if response, err := pgx.CollectOneRow[User](rows, pgx.RowToStructByNameLax[User]); err == nil {
+			log.WithFields(log.Fields{
+				"id": params.Id,
+				"ip": state.Conn.RemoteAddr(),
+			}).Info("Сохранён")
+			return response, nil
+		} else {
+			log.Error(err)
+			return nil, &jsonrpc2.RPCError{
+				Code:    jsonrpc2.InternalError,
+				Message: err.Error(),
 			}
 		}
 	})
