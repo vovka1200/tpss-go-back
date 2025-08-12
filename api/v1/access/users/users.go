@@ -49,7 +49,7 @@ func (u *Users) HandleList(db *pgme.Database, state *websocket.State, data json.
 				JOIN access.members m ON m.user_id=u.id
 				JOIN access.groups g ON g.id=m.group_id
 				WHERE (u.name ~* $2::text OR g.name ~* $2::text)
-				  AND ($1='' OR u.id=$1::uuid) 
+				  AND ($1='' OR u.id=$1::uuid)
 				GROUP BY 1,2,3,4,5`,
 			params.Id,
 			params.Filter,
