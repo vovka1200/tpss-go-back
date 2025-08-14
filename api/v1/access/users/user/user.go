@@ -18,11 +18,12 @@ const AuthenticationMethod = "access.users.user.login"
 
 type User struct {
 	Id       string     `json:"id"`
-	Username string     `json:"username,omitempty"`
-	Name     string     `json:"name,omitempty"`
-	Created  *time.Time `json:"created,omitempty"`
-	Updated  *time.Time `json:"updated,omitempty"`
-	Groups   []string   `json:"groups,omitempty"`
+	Username string     `json:"username"`
+	Name     string     `json:"name"`
+	Created  *time.Time `json:"created"`
+	Updated  *time.Time `json:"updated"`
+	Groups   []string   `json:"groups"`
+	Avatar   *string    `json:"avatar"`
 }
 
 func (u *User) Register(methods api.Methods) {
@@ -56,7 +57,8 @@ func (u *User) HandleAuthentication(db *pgme.Database, state *websocket.State, d
 				    	'name',u.name, 
 				    	'username',u.username,
 				    	'groups',jsonb_agg(g.name),
-				    	'created', u.created
+				    	'created', u.created,
+				    	'avatar', u.avatar_id
 				    ) AS account,
 				    (SELECT token FROM access.add_session(u.id)) as token,
 				    now()+'1d'::interval as token_live_until

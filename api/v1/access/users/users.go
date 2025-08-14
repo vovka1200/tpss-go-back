@@ -44,19 +44,20 @@ func (u *Users) HandleList(db *pgme.Database, state *websocket.State, data json.
 				    u.username,
 				    u.created,
 				    u.updated,
+				    u.avatar_id as avatar,
 				    array_agg(g.name) AS groups
 				FROM access.users u
 				JOIN access.members m ON m.user_id=u.id
 				JOIN access.groups g ON g.id=m.group_id
 				WHERE (u.name ~* $2::text OR g.name ~* $2::text)
 				  AND ($1='' OR u.id=$1::uuid)
-				GROUP BY 1,2,3,4,5`,
+				GROUP BY 1,2,3,4,5,6`,
 			params.Id,
 			params.Filter,
 		)
 		var err error
 		response := Response{}
-		if response.Users, err = pgx.CollectRows[user.User](rows, pgx.RowToStructByNameLax[user.User]); err == nil {
+		if response.Users, err = pgx.CollectRows[user.User](rows, pgx.RowToStructByName[user.User]); err == nil {
 			log.WithFields(log.Fields{
 				"filter": params.Filter,
 				"count":  len(response.Users),
