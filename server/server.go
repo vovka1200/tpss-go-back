@@ -6,6 +6,7 @@ import (
 	"github.com/valyala/fasthttp"
 	"github.com/vovka1200/pgme"
 	v1 "github.com/vovka1200/tpss-go-back/api/v1"
+	"github.com/vovka1200/tpss-go-back/api/v1/files"
 	"github.com/vovka1200/tpss-go-back/jsonrpc2"
 	"github.com/vovka1200/tpss-go-back/websocket"
 )
@@ -16,6 +17,7 @@ type Server struct {
 		V1 v1.API `json:"v1"`
 	} `json:"API"`
 	Database pgme.Database `json:"database"`
+	Files    files.Files
 }
 
 func (s *Server) Run() {
@@ -28,6 +30,8 @@ func (s *Server) Run() {
 	log.Info("API v1 инициализирован")
 	r := router.New()
 	r.GET("/api/v1", s.webSocketHandlerV1)
+	r.GET("/api/v1/file/{id}", s.getFileHandler)
+	r.POST("/api/v1/file/{space}/{name}", s.postFileHandler)
 	log.Info("Роутер инициализирован")
 	if err := fasthttp.ListenAndServe(s.Listen, r.Handler); err != nil {
 		log.Fatal(err)
@@ -52,5 +56,15 @@ func (s *Server) webSocketHandlerV1(ctx *fasthttp.RequestCtx) {
 		})
 	}); err != nil {
 		log.Error(err)
+	}
+}
+
+func (s *Server) getFileHandler(ctx *fasthttp.RequestCtx) {
+	s.Files.GetHandler(ctx, &s.Database)
+}
+
+func (s *Server) postFileHandler(ctx *fasthttp.RequestCtx) {
+	if err := s.Files.PostHandler(ctx, &s.Database); err != nil {
+		ctx.SetStatusCode(500)
 	}
 }
