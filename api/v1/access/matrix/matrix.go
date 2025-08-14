@@ -40,13 +40,13 @@ func (m *Matrix) HandleList(db *pgme.Database, state *websocket.State, data json
 			"ip":   state.Conn.RemoteAddr(),
 		}).Info("Параметры")
 		rows, _ := conn.Query(ctx, `
-				SELECT   
-				    o.name AS object,
-					r.access 
-				FROM access.rules r
-				JOIN access.objects o ON o.id = r.object_id
-				JOIN access.members m ON m.group_id=r.group_id
-				WHERE m.user_id=$1`,
+			SELECT   
+				o.name AS object,
+				r.access 
+			FROM access.rules r
+			JOIN access.objects o ON o.id = r.object_id
+			JOIN access.members m ON m.group_id=r.group_id
+			WHERE m.user_id=$1`,
 			state.UserId,
 		)
 		var err error
