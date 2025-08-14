@@ -29,7 +29,7 @@ func (api *API) Handler(state *websocket.State, db *pgme.Database, method string
 	if state.UserId != "" {
 		// Если соединение авторизовано
 		if handler, ok := api.methods[method]; ok {
-			if api.allowed(state, db, method) {
+			if method == matrix.Method || api.allowed(state, db, method) {
 				return handler(db, state, params)
 			} else {
 				return nil, &jsonrpc2.RPCError{

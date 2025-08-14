@@ -12,6 +12,8 @@ import (
 	"github.com/vovka1200/tpss-go-back/websocket"
 )
 
+const Method = "access.matrix"
+
 type Rules []Rule
 
 type Rule struct {
@@ -30,7 +32,7 @@ type Matrix struct {
 }
 
 func (m *Matrix) Register(methods api.Methods) {
-	methods["access.matrix"] = m.HandleList
+	methods[Method] = m.HandleList
 }
 
 func (m *Matrix) HandleList(db *pgme.Database, state *websocket.State, data json.RawMessage) (any, jsonrpc2.Error) {
