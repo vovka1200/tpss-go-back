@@ -9,6 +9,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/vovka1200/pgme"
 	"github.com/vovka1200/tpss-go-back/api"
+	"github.com/vovka1200/tpss-go-back/api/v1/access/matrix"
 	"github.com/vovka1200/tpss-go-back/jsonrpc2"
 	"github.com/vovka1200/tpss-go-back/websocket"
 	"time"
@@ -38,9 +39,10 @@ type AuthorizeParams struct {
 }
 
 type AuthorizeResponse struct {
-	Account        User      `json:"account"`
-	Token          string    `json:"token"`
-	TokenLiveUntil time.Time `json:"token_live_until" db:"token_live_until"`
+	Account        User         `json:"account"`
+	Token          string       `json:"token"`
+	TokenLiveUntil time.Time    `json:"token_live_until" db:"token_live_until"`
+	AccessMatrix   matrix.Rules `json:"access_matrix" db:"access_matrix"`
 }
 
 func (u *User) HandleAuthentication(db *pgme.Database, state *websocket.State, data json.RawMessage) (any, jsonrpc2.Error) {
@@ -61,10 +63,18 @@ func (u *User) HandleAuthentication(db *pgme.Database, state *websocket.State, d
 				    	'avatar', u.avatar_id
 				    ) AS account,
 				    (SELECT token FROM access.add_session(u.id)) as token,
-				    now()+'1d'::interval as token_live_until
+				    now()+'1d'::interval as token_live_until,
+				    jsonb_agg(
+				    	jsonb_build_object(
+							'object', o.name,
+							'access', r.access
+				    	)
+				    ) AS access_matrix
 				FROM access.users u
 				JOIN access.members m ON m.user_id=u.id
 				JOIN access.groups g ON g.id=m.group_id
+				JOIN access.rules r ON r.group_id=g.id
+				JOIN access.objects o ON o.id=r.object_id
 				LEFT JOIN access.sessions s ON s.user_id=u.id
 				WHERE username=$1 AND password=crypt($2,password) 
 				   OR 
@@ -74,8 +84,9 @@ func (u *User) HandleAuthentication(db *pgme.Database, state *websocket.State, d
 			params.Password,
 			params.Token,
 		)
-		if response, err := pgx.CollectOneRow[AuthorizeResponse](rows, pgx.RowToStructByNameLax[AuthorizeResponse]); err == nil {
+		if response, err := pgx.CollectOneRow[AuthorizeResponse](rows, pgx.RowToStructByName[AuthorizeResponse]); err == nil {
 			state.UserId = response.Account.Id
+			state.AccessMatrix = response.AccessMatrix
 			log.WithFields(log.Fields{
 				"username": params.Username,
 				"ip":       state.Conn.RemoteAddr(),

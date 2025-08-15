@@ -4,6 +4,7 @@ import (
 	ws "github.com/fasthttp/websocket"
 	log "github.com/sirupsen/logrus"
 	"github.com/valyala/fasthttp"
+	"github.com/vovka1200/tpss-go-back/api/v1/access/matrix"
 	"github.com/vovka1200/tpss-go-back/jsonrpc2"
 	"time"
 )
@@ -12,8 +13,9 @@ type ConnectionHandler func(*State)
 type MessageHandler func(*State, []byte) ([]byte, error)
 
 type State struct {
-	Conn   *ws.Conn
-	UserId string
+	Conn         *ws.Conn
+	UserId       string
+	AccessMatrix matrix.Rules
 }
 
 func Handler(ctx *fasthttp.RequestCtx, handler MessageHandler) error {

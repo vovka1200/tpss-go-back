@@ -1,14 +1,11 @@
 package v1
 
 import (
-	"context"
 	"encoding/json"
-	"github.com/jackc/pgx/v5"
 	log "github.com/sirupsen/logrus"
 	"github.com/vovka1200/pgme"
 	common "github.com/vovka1200/tpss-go-back/api"
 	"github.com/vovka1200/tpss-go-back/api/v1/access"
-	"github.com/vovka1200/tpss-go-back/api/v1/access/matrix"
 	"github.com/vovka1200/tpss-go-back/api/v1/access/users/user"
 	"github.com/vovka1200/tpss-go-back/api/v1/crm"
 	"github.com/vovka1200/tpss-go-back/api/v1/settings"
@@ -29,7 +26,7 @@ func (api *API) Handler(state *websocket.State, db *pgme.Database, method string
 	if state.UserId != "" {
 		// Если соединение авторизовано
 		if handler, ok := api.methods[method]; ok {
-			if method == matrix.Method || api.allowed(state, db, method) {
+			if api.allowed(state, method) {
 				return handler(db, state, params)
 			} else {
 				return nil, &jsonrpc2.RPCError{
@@ -77,25 +74,10 @@ func (api *API) Register() {
 	api.Settings.Register(api.methods)
 }
 
-func (api *API) allowed(state *websocket.State, db *pgme.Database, method string) bool {
-	ctx := context.Background()
-	if conn, err := db.NewConnection(ctx); err == nil {
-		defer db.Disconnect(conn)
-		if rows, _ := conn.Query(ctx, `
-			SELECT m.object,
-			       m.access
-			FROM access.matrix m
-			WHERE m.user_id=$1 
-			  AND m.object=$2
-		`,
-			state.UserId,
-			method,
-		); err == nil {
-			if rule, err := pgx.CollectOneRow[matrix.Rule](rows, pgx.RowToStructByName[matrix.Rule]); err == nil {
-				return rule.Object == method && len(rule.Access) > 0
-			} else {
-				log.Error(err)
-			}
+func (api *API) allowed(state *websocket.State, method string) bool {
+	for i := range state.AccessMatrix {
+		if state.AccessMatrix[i].Object == method {
+			return true
 		}
 	}
 	return false
