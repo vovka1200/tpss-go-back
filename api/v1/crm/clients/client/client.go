@@ -1,9 +1,9 @@
 package client
 
-import "time"
+import (
+	"github.com/vovka1200/tpss-go-back/api/v1/entities"
+)
 
 type Client struct {
-	Id      string    `json:"id"`
-	Created time.Time `json:"created"`
-	Name    string    `json:"name"`
+	entities.Entity
 }

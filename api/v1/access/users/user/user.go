@@ -10,6 +10,7 @@ import (
 	"github.com/vovka1200/pgme"
 	"github.com/vovka1200/tpss-go-back/api"
 	"github.com/vovka1200/tpss-go-back/api/v1/access/matrix"
+	"github.com/vovka1200/tpss-go-back/api/v1/entities"
 	"github.com/vovka1200/tpss-go-back/jsonrpc2"
 	"github.com/vovka1200/tpss-go-back/websocket"
 	"time"
@@ -18,13 +19,10 @@ import (
 const AuthenticationMethod = "access.users.user.login"
 
 type User struct {
-	Id       string     `json:"id"`
-	Username string     `json:"username"`
-	Name     string     `json:"name"`
-	Created  *time.Time `json:"created"`
-	Updated  *time.Time `json:"updated"`
-	Groups   []string   `json:"groups"`
-	Avatar   *string    `json:"avatar"`
+	entities.Entity
+	Username string   `json:"username"`
+	Groups   []string `json:"groups"`
+	Avatar   *string  `json:"avatar"`
 }
 
 func (u *User) Register(methods api.Methods) {
