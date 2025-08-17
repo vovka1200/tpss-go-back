@@ -6,6 +6,7 @@ import (
 	"github.com/valyala/fasthttp"
 	"github.com/vovka1200/pgme"
 	v1 "github.com/vovka1200/tpss-go-back/api/v1"
+	"github.com/vovka1200/tpss-go-back/api/v1/access/users/user"
 	"github.com/vovka1200/tpss-go-back/api/v1/files"
 	"github.com/vovka1200/tpss-go-back/jsonrpc2"
 	"github.com/vovka1200/tpss-go-back/websocket"
@@ -30,8 +31,17 @@ func (s *Server) Run() {
 	log.Info("API v1 инициализирован")
 	r := router.New()
 	r.GET("/api/v1", s.webSocketHandlerV1)
-	r.GET("/api/v1/file/{id}", s.getFileHandler)
-	r.POST("/api/v1/file/{space}/{name}", s.postFileHandler)
+	r.GET("/api/v1/file/{id}", func(ctx *fasthttp.RequestCtx) {
+		s.Files.GetHandler(ctx, &s.Database)
+	})
+	r.POST("/api/v1/users/{id}/avatar", func(ctx *fasthttp.RequestCtx) {
+		if ids, err := user.UploadAvatar(ctx, &s.Database); err == nil {
+			ctx.SetBody([]byte(ids))
+		} else {
+			ctx.SetStatusCode(500)
+			ctx.SetBody([]byte(err.Error()))
+		}
+	})
 	log.Info("Роутер инициализирован")
 	if err := fasthttp.ListenAndServe(s.Listen, r.Handler); err != nil {
 		log.Fatal(err)
@@ -56,15 +66,5 @@ func (s *Server) webSocketHandlerV1(ctx *fasthttp.RequestCtx) {
 		})
 	}); err != nil {
 		log.Error(err)
-	}
-}
-
-func (s *Server) getFileHandler(ctx *fasthttp.RequestCtx) {
-	s.Files.GetHandler(ctx, &s.Database)
-}
-
-func (s *Server) postFileHandler(ctx *fasthttp.RequestCtx) {
-	if err := s.Files.PostHandler(ctx, &s.Database); err != nil {
-		ctx.SetStatusCode(500)
 	}
 }
