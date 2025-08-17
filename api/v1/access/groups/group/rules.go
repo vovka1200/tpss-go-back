@@ -42,7 +42,8 @@ func (r *Rules) HandleList(db *pgme.Database, state *websocket.State, data json.
 			rows, _ := conn.Query(ctx, `
 				SELECT 
 				    o.name AS object, 
-				    r.access
+				    r.access,
+				    o.description
 				FROM access.rules r
 				JOIN access.objects o ON o.id=object_id
 				WHERE group_id=$1
