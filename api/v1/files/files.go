@@ -36,11 +36,13 @@ func (f *Files) GetHandler(ctx *fasthttp.RequestCtx, db *pgme.Database) error {
 			if strings.Contains(err.Error(), "no rows") {
 				ctx.SetStatusCode(404)
 			}
+			if strings.Contains(err.Error(), "syntax") {
+				ctx.SetStatusCode(400)
+			}
 			return err
 		}
 	} else {
 		log.Error(err)
 		return err
 	}
-	return nil
 }
