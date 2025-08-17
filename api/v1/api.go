@@ -27,8 +27,16 @@ func (api *API) Handler(state *websocket.State, db *pgme.Database, method string
 		// Если соединение авторизовано
 		if handler, ok := api.methods[method]; ok {
 			if api.allowed(state, method) {
+				log.WithFields(log.Fields{
+					"method": method,
+					"addr":   state.Conn.RemoteAddr(),
+				}).Debug("Доступ получен")
 				return handler(db, state, params)
 			} else {
+				log.WithFields(log.Fields{
+					"method": method,
+					"addr":   state.Conn.RemoteAddr(),
+				}).Warn("Доступ запрещён")
 				return nil, &jsonrpc2.RPCError{
 					Code:    jsonrpc2.AccessDenied,
 					Message: "Method access denied",
